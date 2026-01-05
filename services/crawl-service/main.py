@@ -22,13 +22,6 @@ def parse_args():
     )
     
     parser.add_argument(
-        "--queue-type",
-        type=str,
-        choices=["redis", "rabbitmq", "memory"],
-        help="Queue type (overrides env)"
-    )
-    
-    parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug mode"
@@ -45,12 +38,9 @@ def main():
         # Load config
         config = Config()
         
-        # Override với command line args
+        # Override voi command line args
         if args.username:
             config.TIKTOK_USERNAME = args.username
-        
-        if args.queue_type:
-            config.QUEUE_TYPE = args.queue_type
         
         if args.debug:
             config.DEBUG = True
@@ -60,8 +50,9 @@ def main():
         print("  TIKTOK LIVE CRAWLER SERVICE")
         print("=" * 60)
         print(f"  Target    : @{config.TIKTOK_USERNAME}")
-        print(f"  Queue     : {config.QUEUE_TYPE}")
+        print(f"  Queue     : RabbitMQ")
         print(f"  Queue Host: {config.QUEUE_HOST}:{config.QUEUE_PORT}")
+        print(f"  Queue Name: {config.QUEUE_NAME}")
         print(f"  Debug     : {config.DEBUG}")
         print("=" * 60)
         print("\n⚠️  Press Ctrl+C to stop\n")
@@ -84,7 +75,10 @@ def main():
         sys.exit(0)
         
     except Exception as e:
+        import traceback
         print(f"\n❌ Unexpected Error: {e}")
+        print("\nFull traceback:")
+        traceback.print_exc()
         sys.exit(1)
 
 

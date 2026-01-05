@@ -1,48 +1,179 @@
 version: "3.9"
 
 services:
+  # Message Queue
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"      # AMQP port
+      - "15672:15672"    # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tiktok-network
+
+  # Crawl Service
   crawl-service:
     build:
       context: ..
       dockerfile: docker/Dockerfile.crawl
     container_name: crawl-service
+    environment:
+      # TikTok
+      TIKTOK_USERNAME: ${TIKTOK_USERNAME}
+      
+      # Queue
+      QUEUE_TYPE: rabbitmq
+      QUEUE_HOST: rabbitmq
+      QUEUE_PORT: 5672
+      QUEUE_NAME: tiktok_comments
+      
+      # RabbitMQ
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin123
+      RABBITMQ_VHOST: /
+      
+      # Debug
+      DEBUG: ${DEBUG:-false}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - tiktok-network
 
+  # NLP Service
   nlp-service:
     build:
       context: ..
       dockerfile: docker/Dockerfile.nlp
     container_name: nlp-service
+    environment:
+      QUEUE_TYPE: rabbitmq
+      QUEUE_HOST: rabbitmq
+      QUEUE_PORT: 5672
+      INPUT_QUEUE: tiktok_comments
+      OUTPUT_QUEUE: nlp_results
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin123
+      RABBITMQ_VHOST: /
     depends_on:
-      - crawl-service
+      rabbitmq:
+        condition: service_healthy
+      crawl-service:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - tiktok-network
 
+  # Chat Service
   chat-service:
     build:
       context: ..
       dockerfile: docker/Dockerfile.chat
     container_name: chat-service
+    environment:
+      QUEUE_TYPE: rabbitmq
+      QUEUE_HOST: rabbitmq
+      QUEUE_PORT: 5672
+      INPUT_QUEUE: nlp_results
+      OUTPUT_QUEUE: chat_responses
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin123
+      RABBITMQ_VHOST: /
     depends_on:
-      - nlp-service
+      rabbitmq:
+        condition: service_healthy
+      nlp-service:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - tiktok-network
 
+  # TTS Service
   tts-service:
     build:
       context: ..
       dockerfile: docker/Dockerfile.tts
     container_name: tts-service
+    environment:
+      QUEUE_TYPE: rabbitmq
+      QUEUE_HOST: rabbitmq
+      QUEUE_PORT: 5672
+      INPUT_QUEUE: chat_responses
+      OUTPUT_QUEUE: tts_audio
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin123
+      RABBITMQ_VHOST: /
     depends_on:
-      - chat-service
+      rabbitmq:
+        condition: service_healthy
+      chat-service:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - tiktok-network
 
+  # Avatar Service
   avatar-service:
     build:
       context: ..
       dockerfile: docker/Dockerfile.avatar
     container_name: avatar-service
+    environment:
+      QUEUE_TYPE: rabbitmq
+      QUEUE_HOST: rabbitmq
+      QUEUE_PORT: 5672
+      INPUT_QUEUE: tts_audio
+      OUTPUT_QUEUE: avatar_video
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin123
+      RABBITMQ_VHOST: /
     depends_on:
-      - tts-service
+      rabbitmq:
+        condition: service_healthy
+      tts-service:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - tiktok-network
 
+  # OBS Service
   obs-service:
     build:
       context: ..
       dockerfile: docker/Dockerfile.obs
     container_name: obs-service
+    environment:
+      QUEUE_TYPE: rabbitmq
+      QUEUE_HOST: rabbitmq
+      QUEUE_PORT: 5672
+      INPUT_QUEUE: avatar_video
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin123
+      RABBITMQ_VHOST: /
     depends_on:
-      - avatar-service
+      rabbitmq:
+        condition: service_healthy
+      avatar-service:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - tiktok-network
+
+networks:
+  tiktok-network:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:

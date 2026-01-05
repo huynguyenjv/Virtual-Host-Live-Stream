@@ -4,11 +4,16 @@ TikTok Live Comment Crawler
 Nhiệm vụ: Lắng nghe comment từ TikTok Live và đẩy vào queue
 """
 
+import ssl
 import asyncio
 from datetime import datetime
 from typing import Optional
 from dataclasses import dataclass, asdict
 import json
+import urllib3
+
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from TikTokLive import TikTokLiveClient
 from TikTokLive.events import (
@@ -18,7 +23,7 @@ from TikTokLive.events import (
 )
 
 from config import Config
-from queue import MessageQueue
+from message_queue import MessageQueue
 
 
 @dataclass
@@ -53,9 +58,25 @@ class TikTokLiveCrawler:
         Args:
             config: Configuration object
         """
+        # Configure SSL for TikTok connections
+        try:
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+        except Exception as e:
+            self._log(f"SSL setup warning: {e}", level="DEBUG")
+        
         self.config = config
         self.username = config.TIKTOK_USERNAME
-        self.client = TikTokLiveClient(unique_id=self.username)
+        
+        # Initialize TikTok client with custom settings
+        try:
+            self.client = TikTokLiveClient(unique_id=self.username)
+            self._log(f"✓ TikTok client initialized for @{self.username}", level="DEBUG")
+        except Exception as e:
+            self._log(f"TikTok client init error: {e}", level="ERROR")
+            raise
+            
         self.queue = MessageQueue(config)
         
         self.is_connected = False
@@ -66,20 +87,20 @@ class TikTokLiveCrawler:
     def _setup_handlers(self):
         """Setup event handlers"""
         
-        @self.client.on("connect")
+        @self.client.on(ConnectEvent)
         async def on_connect(event: ConnectEvent):
             """Khi kết nối thành công"""
             self.is_connected = True
             self._log(f"✅ Connected to @{self.username}")
             self._log(f"👥 Viewers: {event.viewer_count}")
         
-        @self.client.on("disconnect")
+        @self.client.on(DisconnectEvent)
         async def on_disconnect(event: DisconnectEvent):
             """Khi ngắt kết nối"""
             self.is_connected = False
             self._log("⚠️ Disconnected")
         
-        @self.client.on("comment")
+        @self.client.on(CommentEvent)
         async def on_comment(event: CommentEvent):
             """
             Khi có comment mới
@@ -124,18 +145,41 @@ class TikTokLiveCrawler:
         try:
             self._log(f"🔄 Connecting to @{self.username}...")
             
+            # Check if user exists first (optional)
+            self._log(f"📡 Checking TikTok user @{self.username}...", level="DEBUG")
+            
             # Connect đến queue
-            await self.queue.connect()
+            try:
+                await self.queue.connect()
+                self._log("✓ Queue connected", level="DEBUG")
+            except Exception as queue_error:
+                self._log(f"⚠️ Queue connection failed: {queue_error}", level="ERROR")
+                self._log("Continuing without queue (comments won't be saved)...", level="DEBUG")
             
             # Connect đến TikTok Live
+            self._log("📺 Connecting to TikTok Live...", level="DEBUG")
             await self.client.start()
             
         except Exception as e:
-            self._log(f"❌ Error: {e}", level="ERROR")
+            error_msg = str(e)
+            if "certificate verify failed" in error_msg.lower():
+                self._log("❌ SSL Certificate Error - TikTok connection blocked", level="ERROR")
+                self._log("💡 Try: pip install --upgrade certifi", level="INFO")
+                self._log("💡 Or check if TikTok is accessible in your region", level="INFO")
+            elif "user not found" in error_msg.lower():
+                self._log(f"❌ TikTok user @{self.username} not found", level="ERROR")
+            elif "not live" in error_msg.lower():
+                self._log(f"❌ User @{self.username} is not currently live", level="ERROR")
+            else:
+                self._log(f"❌ Connection Error: {error_msg}", level="ERROR")
+            
             self.is_connected = False
         finally:
             # Cleanup
-            await self.queue.disconnect()
+            try:
+                await self.queue.disconnect()
+            except:
+                pass
     
     def run(self):
         """
