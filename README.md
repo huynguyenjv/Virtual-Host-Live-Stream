@@ -170,8 +170,8 @@ Input Comment
 
 ```bash
 # Clone repository
-git clone https://github.com/your-repo/tiktok-virtual-host.git
-cd tiktok-virtual-host
+git clone https://github.com/huynguyenjv/Virtual-Host-Live-Stream.git
+cd Virtual-Host-Live-Stream
 
 # Install dependencies
 pip install -r requirements.txt
