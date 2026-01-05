@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  crawl-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.crawl
+    container_name: crawl-service
+
+  nlp-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.nlp
+    container_name: nlp-service
+    depends_on:
+      - crawl-service
+
+  chat-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.chat
+    container_name: chat-service
+    depends_on:
+      - nlp-service
+
+  tts-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.tts
+    container_name: tts-service
+    depends_on:
+      - chat-service
+
+  avatar-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.avatar
+    container_name: avatar-service
+    depends_on:
+      - tts-service
+
+  obs-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.obs
+    container_name: obs-service
+    depends_on:
+      - avatar-service
