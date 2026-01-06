@@ -76,6 +76,42 @@ services:
     networks:
       - tiktok-network
 
+  # Orchestrator Service (Central Brain)
+  orchestrator-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.orchestrator
+    container_name: orchestrator-service
+    environment:
+      QUEUE_TYPE: rabbitmq
+      QUEUE_HOST: rabbitmq
+      QUEUE_PORT: 5672
+      INPUT_QUEUE: nlp_results
+      OUTPUT_QUEUE: chat_requests
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin123
+      RABBITMQ_VHOST: /
+      # Brain settings
+      MIN_SPEAK_INTERVAL: 3.0
+      MAX_SPEAK_INTERVAL: 15.0
+      AUTO_SPEAK_PRIORITY: 9
+      # State Machine
+      ENABLE_STATE_MACHINE: "true"
+      AUTO_STATE_TRANSITION: "true"
+      # Debug
+      DEBUG: ${DEBUG:-false}
+    volumes:
+      - ./logs:/app/logs
+      - ./metrics:/app/metrics
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      nlp-service:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - tiktok-network
+
   # Chat Service
   chat-service:
     build:
@@ -86,7 +122,7 @@ services:
       QUEUE_TYPE: rabbitmq
       QUEUE_HOST: rabbitmq
       QUEUE_PORT: 5672
-      INPUT_QUEUE: nlp_results
+      INPUT_QUEUE: chat_requests
       OUTPUT_QUEUE: chat_responses
       RABBITMQ_USER: admin
       RABBITMQ_PASSWORD: admin123
@@ -94,7 +130,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      nlp-service:
+      orchestrator-service:
         condition: service_started
     restart: unless-stopped
     networks:

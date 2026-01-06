@@ -1,0 +1,10 @@
+# Orchestrator Service Dependencies
+
+# Message Queue
+aio-pika>=9.0.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Typing
+typing-extensions>=4.0.0
