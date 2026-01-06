@@ -26,7 +26,8 @@ class NLPService:
         self.config = config
         
         # Initialize components
-        self.preprocessor = TextPreprocessor(remove_emoji=False)
+        # remove_emoji=True vì output là lời nói (TTS không đọc được emoji)
+        self.preprocessor = TextPreprocessor(remove_emoji=True)
         self.filter = CommentFilter(config)
         self.intent_detector = IntentDetector()
         
@@ -55,12 +56,18 @@ class NLPService:
         
         self._log(f"📥 [{nickname}]: {content}")
         
-        # 1. Preprocess
+        # 1. Preprocess (bao gồm remove emoji, tính emoji_ratio)
         preprocessed = self.preprocessor.process(content)
         cleaned_text = preprocessed['cleaned']
+        emoji_ratio = preprocessed.get('emoji_ratio', 0.0)
+        is_emoji_only = preprocessed.get('is_emoji_only', False)
         
-        # 2. Filter
-        filter_result = self.filter.filter(cleaned_text)
+        # 2. Filter (truyền emoji data để detect spam)
+        filter_result = self.filter.filter(
+            cleaned_text,
+            emoji_ratio=emoji_ratio,
+            is_emoji_only=is_emoji_only
+        )
         
         if not filter_result.should_respond:
             self.filtered_count += 1

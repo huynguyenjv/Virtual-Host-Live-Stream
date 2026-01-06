@@ -100,7 +100,6 @@ class OrchestratorService:
         self.processed_count += 1
         
         # Extract data
-        user_id = data.get('user_id', '')
         username = data.get('username', 'unknown')
         nickname = data.get('nickname', username)
         comment = data.get('original_comment', '')

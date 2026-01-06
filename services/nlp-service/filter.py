@@ -41,6 +41,9 @@ class CommentFilter:
         r'^\d+$',  # Chỉ có số
     ]
     
+    # Emoji spam threshold - tỷ lệ emoji > 70% là spam
+    EMOJI_SPAM_THRESHOLD = 0.7
+    
     # Toxic keywords (có thể mở rộng)
     TOXIC_KEYWORDS = [
         'địt', 'đụ', 'lồn', 'buồi', 'cặc', 'đéo', 'vãi',
@@ -84,6 +87,26 @@ class CommentFilter:
                 return True
         return False
     
+    def is_emoji_spam(self, emoji_ratio: float, is_emoji_only: bool) -> bool:
+        """
+        Kiểm tra emoji spam
+        - Comment toàn emoji (không có text) -> spam
+        - Comment có tỷ lệ emoji > threshold -> spam
+        
+        Args:
+            emoji_ratio: Tỷ lệ emoji trong comment (0.0 - 1.0)
+            is_emoji_only: True nếu comment chỉ có emoji
+        """
+        # Comment toàn emoji -> block
+        if is_emoji_only:
+            return True
+        
+        # Tỷ lệ emoji quá cao -> block
+        if emoji_ratio >= self.EMOJI_SPAM_THRESHOLD:
+            return True
+        
+        return False
+    
     def get_priority(self, text: str) -> int:
         """
         Xác định priority của comment
@@ -108,17 +131,33 @@ class CommentFilter:
         # Mặc định
         return 2
     
-    def filter(self, text: str) -> FilterResult:
+    def filter(
+        self, 
+        text: str, 
+        emoji_ratio: float = 0.0, 
+        is_emoji_only: bool = False
+    ) -> FilterResult:
         """
         Lọc và đánh giá comment
         
         Args:
-            text: Comment text đã được clean
+            text: Comment text đã được clean (sau khi remove emoji)
+            emoji_ratio: Tỷ lệ emoji trong comment gốc
+            is_emoji_only: True nếu comment gốc chỉ có emoji
             
         Returns:
             FilterResult
         """
-        # Kiểm tra độ dài
+        # Kiểm tra emoji spam (check trước vì text đã bị remove emoji)
+        if self.is_emoji_spam(emoji_ratio, is_emoji_only):
+            return FilterResult(
+                is_valid=False,
+                should_respond=False,
+                reason="emoji_spam",
+                priority=0
+            )
+        
+        # Kiểm tra độ dài (sau khi remove emoji)
         if len(text) < self.min_length:
             return FilterResult(
                 is_valid=False,
@@ -135,7 +174,7 @@ class CommentFilter:
                 priority=0
             )
         
-        # Kiểm tra spam
+        # Kiểm tra spam (text pattern)
         if self.is_spam(text):
             return FilterResult(
                 is_valid=False,

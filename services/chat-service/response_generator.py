@@ -1,12 +1,42 @@
 """
 response_generator.py
 LLM Response Generator
-Hỗ trợ: OpenAI, Ollama, Gemini
+Hỗ trợ: OpenAI, Ollama, Gemini, Groq, HuggingFace
+
+Lưu ý: Output được strip emoji vì đây là lời nói (TTS)
 """
 
+import re
 import asyncio
 from typing import Optional
 from abc import ABC, abstractmethod
+
+
+# Emoji pattern - loại bỏ emoji khỏi response vì đây là lời nói
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # transport & map symbols
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "\U00002702-\U000027B0"  # dingbats
+    "\U000024C2-\U0001F251"  # enclosed characters
+    "\U0001F900-\U0001F9FF"  # supplemental symbols
+    "\U0001FA00-\U0001FA6F"  # chess symbols
+    "\U0001FA70-\U0001FAFF"  # symbols extended
+    "\U00002600-\U000026FF"  # misc symbols
+    "]+",
+    flags=re.UNICODE
+)
+
+
+def strip_emoji(text: str) -> str:
+    """Loại bỏ emoji khỏi text vì đây là lời nói (TTS không đọc được emoji)"""
+    # Remove emojis
+    text = EMOJI_PATTERN.sub('', text)
+    # Clean up multiple spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 
 class BaseLLM(ABC):
@@ -192,12 +222,12 @@ class MockLLM(BaseLLM):
     """Mock LLM cho testing"""
     
     MOCK_RESPONSES = {
-        "greeting": "Chào bạn nha! 👋 Cảm ơn bạn đã ghé livestream của mình!",
-        "price": "Dạ sản phẩm này giá 299k thôi ạ! 💕 Hôm nay có giảm 10% nữa nha!",
-        "product": "Dạ sản phẩm còn đủ size và màu nha bạn! 👍",
-        "shipping": "Shop có freeship từ 300k nha! Giao hàng 2-5 ngày ạ 🚀",
-        "order": "Bạn để lại SĐT hoặc inbox shop nha! 📱 Mình sẽ hỗ trợ đặt hàng liền!",
-        "default": "Dạ mình ghi nhận nha! Cảm ơn bạn đã quan tâm! 💕"
+        "greeting": "Chào bạn nha! Cảm ơn bạn đã ghé livestream của mình!",
+        "price": "Dạ sản phẩm này giá 299k thôi ạ! Hôm nay có giảm 10% nữa nha!",
+        "product": "Dạ sản phẩm còn đủ size và màu nha bạn!",
+        "shipping": "Shop có freeship từ 300k nha! Giao hàng 2-5 ngày ạ.",
+        "order": "Bạn để lại SĐT hoặc inbox shop nha! Mình sẽ hỗ trợ đặt hàng liền!",
+        "default": "Dạ mình ghi nhận nha! Cảm ơn bạn đã quan tâm!"
     }
     
     async def generate(self, messages: list, max_tokens: int = 150) -> str:
@@ -292,6 +322,9 @@ class ResponseGenerator:
                 self.llm.generate(messages, self.config.MAX_RESPONSE_LENGTH),
                 timeout=timeout
             )
+            # Strip emoji vì đây là lời nói (TTS không đọc được emoji)
+            if response:
+                response = strip_emoji(response)
             return response
         
         except asyncio.TimeoutError:
