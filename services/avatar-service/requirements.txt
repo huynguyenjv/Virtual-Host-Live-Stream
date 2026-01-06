@@ -1,0 +1,25 @@
+# Avatar Service Dependencies
+
+# Message Queue
+aio-pika>=9.0.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Image Processing
+Pillow>=10.0.0
+
+# Audio Processing
+librosa>=0.10.0
+pydub>=0.25.0
+numpy>=1.24.0
+
+# Video Export
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.8
+
+# WebSocket Streaming (optional)
+websockets>=11.0.0
+
+# Typing
+typing-extensions>=4.0.0
